@@ -142,12 +142,9 @@ impl Server {
         while let Some(event) = this.server.get_event() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
-                    println!("Client connect {client_id}");
-
                     enter_list.push(client_id);
                 }
-                ServerEvent::ClientDisconnected { client_id, reason } => {
-                    println!("Client disconnect {client_id}");
+                ServerEvent::ClientDisconnected { client_id, .. } => {
                     leave_list.push(client_id);
                 }
             }
@@ -156,7 +153,27 @@ impl Server {
         for client_id in this.server.clients_id() {
             while let Some(message) = this
                 .server
+                .receive_message(client_id, DefaultChannel::Unreliable)
+            {
+                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
+                let message = lua.to_value(&message)?;
+
+                message_list.push(lua.to_value(&(client_id, message))?);
+            }
+
+            while let Some(message) = this
+                .server
                 .receive_message(client_id, DefaultChannel::ReliableOrdered)
+            {
+                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
+                let message = lua.to_value(&message)?;
+
+                message_list.push(lua.to_value(&(client_id, message))?);
+            }
+
+            while let Some(message) = this
+                .server
+                .receive_message(client_id, DefaultChannel::ReliableUnordered)
             {
                 let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
                 let message = lua.to_value(&message)?;
@@ -173,14 +190,27 @@ impl Server {
     #[method(
         from = "Server",
         info = "Send a message to every client.",
-        parameter(name = "message", info = "Message to send.", kind = "table")
+        parameter(name = "message", info = "Message to send.", kind = "table"),
+        parameter(
+            name = "channel",
+            info = "Message channel.",
+            kind(user_data(name = "ChannelKind"))
+        )
     )]
-    fn set(lua: &mlua::Lua, this: &mut Self, message: mlua::Value) -> mlua::Result<()> {
+    fn set(
+        lua: &mlua::Lua,
+        this: &mut Self,
+        (message, channel): (mlua::Value, usize),
+    ) -> mlua::Result<()> {
         let message: serde_value::Value = lua.from_value(message)?;
         let message = map_error(rmp_serde::to_vec_named(&message))?;
+        let channel = match channel {
+            0 => DefaultChannel::Unreliable,
+            1 => DefaultChannel::ReliableOrdered,
+            _ => DefaultChannel::ReliableUnordered,
+        };
 
-        this.server
-            .broadcast_message(DefaultChannel::ReliableOrdered, message);
+        this.server.broadcast_message(channel, message);
 
         Ok(())
     }
@@ -189,18 +219,27 @@ impl Server {
         from = "Server",
         info = "Send a message to a specific client.",
         parameter(name = "message", info = "Message to send.", kind = "table"),
+        parameter(
+            name = "channel",
+            info = "Message channel.",
+            kind(user_data(name = "ChannelKind"))
+        ),
         parameter(name = "client", info = "Specific client.", kind = "number")
     )]
     fn set_client(
         lua: &mlua::Lua,
         this: &mut Self,
-        (message, client): (mlua::Value, u64),
+        (message, channel, client): (mlua::Value, usize, u64),
     ) -> mlua::Result<()> {
         let message: serde_value::Value = lua.from_value(message)?;
         let message = map_error(rmp_serde::to_vec_named(&message))?;
+        let channel = match channel {
+            0 => DefaultChannel::Unreliable,
+            1 => DefaultChannel::ReliableOrdered,
+            _ => DefaultChannel::ReliableUnordered,
+        };
 
-        this.server
-            .send_message(client, DefaultChannel::ReliableOrdered, message);
+        this.server.send_message(client, channel, message);
 
         Ok(())
     }
@@ -209,18 +248,28 @@ impl Server {
         from = "Server",
         info = "Send a message to every client, except a specific client.",
         parameter(name = "message", info = "Message to send.", kind = "table"),
+        parameter(
+            name = "channel",
+            info = "Message channel.",
+            kind(user_data(name = "ChannelKind"))
+        ),
         parameter(name = "client", info = "Specific client.", kind = "number")
     )]
     fn set_client_except(
         lua: &mlua::Lua,
         this: &mut Self,
-        (message, client): (mlua::Value, u64),
+        (message, channel, client): (mlua::Value, usize, u64),
     ) -> mlua::Result<()> {
         let message: serde_value::Value = lua.from_value(message)?;
         let message = map_error(rmp_serde::to_vec_named(&message))?;
+        let channel = match channel {
+            0 => DefaultChannel::Unreliable,
+            1 => DefaultChannel::ReliableOrdered,
+            _ => DefaultChannel::ReliableUnordered,
+        };
 
         this.server
-            .broadcast_message_except(client, DefaultChannel::ReliableOrdered, message);
+            .broadcast_message_except(client, channel, message);
 
         Ok(())
     }
@@ -381,7 +430,24 @@ impl Client {
         let mut message_list = Vec::new();
 
         if this.client.is_connected() {
+            while let Some(message) = this.client.receive_message(DefaultChannel::Unreliable) {
+                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
+                let message = lua.to_value(&message)?;
+
+                message_list.push(lua.to_value(&message)?);
+            }
+
             while let Some(message) = this.client.receive_message(DefaultChannel::ReliableOrdered) {
+                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
+                let message = lua.to_value(&message)?;
+
+                message_list.push(lua.to_value(&message)?);
+            }
+
+            while let Some(message) = this
+                .client
+                .receive_message(DefaultChannel::ReliableUnordered)
+            {
                 let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
                 let message = lua.to_value(&message)?;
 
@@ -397,15 +463,28 @@ impl Client {
     #[method(
         from = "Client",
         info = "Send a message to the server.",
-        parameter(name = "message", info = "Message to send.", kind = "table")
+        parameter(name = "message", info = "Message to send.", kind = "table"),
+        parameter(
+            name = "channel",
+            info = "Message channel.",
+            kind(user_data(name = "ChannelKind"))
+        )
     )]
-    fn set(lua: &mlua::Lua, this: &mut Self, message: mlua::Value) -> mlua::Result<()> {
+    fn set(
+        lua: &mlua::Lua,
+        this: &mut Self,
+        (message, channel): (mlua::Value, usize),
+    ) -> mlua::Result<()> {
         if this.client.is_connected() {
             let message: serde_value::Value = lua.from_value(message)?;
             let message = map_error(rmp_serde::to_vec(&message))?;
+            let channel = match channel {
+                0 => DefaultChannel::Unreliable,
+                1 => DefaultChannel::ReliableOrdered,
+                _ => DefaultChannel::ReliableUnordered,
+            };
 
-            this.client
-                .send_message(DefaultChannel::ReliableOrdered, message);
+            this.client.send_message(channel, message);
         }
 
         Ok(())

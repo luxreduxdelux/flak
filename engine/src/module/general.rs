@@ -1,3 +1,5 @@
+use lz4_flex::{compress_prepend_size, decompress_size_prepended};
+use mlua::prelude::*;
 use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
@@ -36,6 +38,18 @@ impl From<Camera2D> for ffi::Camera2D {
 
 //================================================================
 
+pub fn value_into_pack(lua: &mlua::Lua, data: mlua::Value) -> mlua::Result<Vec<u8>> {
+    let value: serde_value::Value = lua.from_value(data)?;
+    let value = map_error(rmp_serde::to_vec_named(&value))?;
+    Ok(compress_prepend_size(&value))
+}
+
+pub fn value_from_pack(lua: &mlua::Lua, data: Vec<u8>) -> mlua::Result<mlua::Value> {
+    let data = map_error(decompress_size_prepended(&data))?;
+    let value: serde_value::Value = map_error(rmp_serde::from_slice(&data))?;
+    lua.to_value(&value)
+}
+
 pub fn c_string(text: &str) -> mlua::Result<CString> {
     let convert = CString::new(text);
 
@@ -58,7 +72,10 @@ where
     }
 }
 
-pub fn sub_string(_: &mlua::Lua, (value, index_a, index_b): (String, isize, Option<isize>)) -> mlua::Result<String> {
+pub fn sub_string(
+    _: &mlua::Lua,
+    (value, index_a, index_b): (String, isize, Option<isize>),
+) -> mlua::Result<String> {
     let character: Vec<char> = value.chars().collect();
     let length = character.len() as isize;
 
@@ -68,8 +85,16 @@ pub fn sub_string(_: &mlua::Lua, (value, index_a, index_b): (String, isize, Opti
 
     let index_b = index_b.unwrap_or(-1);
 
-    let mut a = if index_a < 0 { length + index_a } else { index_a - 1 };
-    let mut b = if index_b < 0 { length + index_b } else { index_b - 1 };
+    let mut a = if index_a < 0 {
+        length + index_a
+    } else {
+        index_a - 1
+    };
+    let mut b = if index_b < 0 {
+        length + index_b
+    } else {
+        index_b - 1
+    };
 
     a = a.max(0);
     b = b.min(length - 1);
@@ -78,7 +103,5 @@ pub fn sub_string(_: &mlua::Lua, (value, index_a, index_b): (String, isize, Opti
         return Ok(String::new());
     }
 
-    Ok(character[a as usize..=b as usize]
-        .iter()
-        .collect())
+    Ok(character[a as usize..=b as usize].iter().collect())
 }

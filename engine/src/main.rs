@@ -186,7 +186,6 @@ impl Script {
                 "print",
                 self.lua.create_function(|_, value: mlua::Value| {
                     println!("{value:#?}");
-
                     Ok(())
                 })?,
             )?;

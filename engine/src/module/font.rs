@@ -25,8 +25,8 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
 //================================================================
 
 #[class(info = "Font class.")]
-struct Font {
-    inner: ffi::Font,
+pub struct Font {
+    pub inner: ffi::Font,
 }
 
 impl Font {
@@ -182,6 +182,11 @@ impl Font {
         }
     }
 
+    fn get_identifier(_: &mlua::Lua, this: &Self, _: ()) -> mlua::Result<usize> {
+        let address: usize = &this.inner as *const ffi::Font as usize;
+        Ok(address)
+    }
+
     // Original code from: https://www.raylib.com/examples/text/loader.html?name=text_rectangle_bounds
     #[method(
         from = "Font",
@@ -195,25 +200,22 @@ impl Font {
         parameter(name = "scale", info = "Scale of text to draw.", kind = "number"),
         parameter(name = "space", info = "Space of text to draw.", kind = "number"),
         parameter(name = "color", info = "Color of text to draw.", kind = "Color"),
-        result(
-            name = "shift",
-            info = "Amount of vertical line shifting.",
-            kind = "number"
-        )
+        result(name = "scale", info = "Scale of text.", kind = "Vector2")
     )]
     fn draw_wrap(
         lua: &mlua::Lua,
         this: &Self,
         (text, box_2, scale, space, color): (String, mlua::Value, f32, f32, mlua::Value),
-    ) -> mlua::Result<f32> {
+    ) -> mlua::Result<mlua::Value> {
         let box_2: Box2 = lua.from_value(box_2)?;
         let color: Color = lua.from_value(color)?;
 
         let length: i32 = text.len() as i32;
         let text = c_string(&text)?;
 
-        let mut text_shift_y: f32 = 0.0;
+        let mut text_scale_x: f32 = 0.0;
         let mut text_shift_x: f32 = 0.0;
+        let mut text_shift_y: f32 = 0.0;
 
         let scale_factor: f32 = scale / this.inner.baseSize as f32;
 
@@ -316,6 +318,10 @@ impl Font {
                 }
 
                 if i == end_line {
+                    if text_shift_x + glyph_width >= text_scale_x {
+                        text_scale_x = text_shift_x + glyph_width;
+                    }
+
                     // 2.0 is to roughly be in par with the default text line spacing
                     text_shift_y += (this.inner.baseSize as f32 + 2.0) * scale_factor;
                     text_shift_x = 0.0;
@@ -336,7 +342,7 @@ impl Font {
             k += 1;
         }
 
-        Ok(text_shift_y)
+        lua.to_value(&Vector2::new(text_scale_x, text_shift_y))
     }
 
     #[method(
@@ -374,24 +380,21 @@ impl Font {
         ),
         parameter(name = "scale", info = "Scale of text to evaluate.", kind = "number"),
         parameter(name = "space", info = "Space of text to evaluate.", kind = "number"),
-        result(
-            name = "shift",
-            info = "Amount of vertical line shifting.",
-            kind = "number"
-        )
+        result(name = "scale", info = "Scale of text.", kind = "Vector2")
     )]
     fn measure_wrap(
         lua: &mlua::Lua,
         this: &Self,
         (text, box_2, scale, space): (String, mlua::Value, f32, f32),
-    ) -> mlua::Result<f32> {
+    ) -> mlua::Result<mlua::Value> {
         let box_2: Box2 = lua.from_value(box_2)?;
 
         let length: i32 = text.len() as i32;
         let text = c_string(&text)?;
 
-        let mut text_shift_y: f32 = 0.0;
+        let mut text_scale_x: f32 = 0.0;
         let mut text_shift_x: f32 = 0.0;
+        let mut text_shift_y: f32 = 0.0;
 
         let scale_factor: f32 = scale / this.inner.baseSize as f32;
 
@@ -496,6 +499,10 @@ impl Font {
                 }
 
                 if i == end_line {
+                    if text_shift_x + glyph_width >= text_scale_x {
+                        text_scale_x = text_shift_x + glyph_width;
+                    }
+
                     // 2.0 is to roughly be in par with the default text line spacing
                     text_shift_y += (this.inner.baseSize as f32 + 2.0) * scale_factor;
                     text_shift_x = 0.0;
@@ -516,7 +523,7 @@ impl Font {
             k += 1;
         }
 
-        Ok(text_shift_y)
+        lua.to_value(&Vector2::new(text_scale_x, text_shift_y))
     }
 }
 
@@ -531,9 +538,10 @@ impl Drop for Font {
 impl mlua::UserData for Font {
     #[rustfmt::skip]
     fn add_methods<M: mlua::UserDataMethods<Self>>(method: &mut M) {
-        method.add_method("draw",         Self::draw);
-        method.add_method("draw_wrap",    Self::draw_wrap);
-        method.add_method("measure",      Self::measure);
-        method.add_method("measure_wrap", Self::measure_wrap);
+        method.add_method("draw",           Self::draw);
+        method.add_method("draw_wrap",      Self::draw_wrap);
+        method.add_method("measure",        Self::measure);
+        method.add_method("measure_wrap",   Self::measure_wrap);
+        method.add_method("get_identifier", Self::get_identifier);
     }
 }

@@ -107,7 +107,7 @@ impl Archive {
             let mut file = Vec::new();
             find.read_to_end(&mut file)?;
 
-            Ok(lua.to_value(&file)?)
+            value_from_pack(lua, file)
         } else {
             let mut file = String::new();
             find.read_to_string(&mut file)?;

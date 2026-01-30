@@ -33,7 +33,7 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
 
 #[repr(C)]
 #[derive(Debug)]
-struct TextureBatch {
+struct DrawCall {
     // Texture ID.
     identifier: u32,
     // Z-index.
@@ -146,7 +146,7 @@ impl Texture {
     fn draw_batch(_: &mlua::Lua, (buffer, length): (mlua::Value, usize)) -> mlua::Result<()> {
         let buffer = buffer.to_pointer();
         let buffer =
-            unsafe { std::slice::from_raw_parts_mut(buffer as *mut TextureBatch, length) };
+            unsafe { std::slice::from_raw_parts_mut(buffer as *mut DrawCall, length) };
 
         let mut texture: ffi::Texture2D = unsafe { MaybeUninit::zeroed().assume_init() };
 

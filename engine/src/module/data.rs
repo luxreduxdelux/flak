@@ -1,8 +1,10 @@
+use crate::module::general::*;
 use engine_macro::*;
 
 //================================================================
 
 use chrono::prelude::*;
+use lz4_flex::{compress_prepend_size, decompress_size_prepended};
 use mlua::prelude::*;
 use serde_json::Value;
 
@@ -19,6 +21,8 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     data.set("get_kind",    lua.create_function(self::get_kind)?)?;
     data.set("into_string", lua.create_function(self::into_string)?)?;
     data.set("from_string", lua.create_function(self::from_string)?)?;
+    //data.set("into_pack", lua.create_function(self::into_pack)?)?;
+    //data.set("from_pack", lua.create_function(self::from_pack)?)?;
     data.set("get_system",  lua.create_function(self::get_system)?)?;
     data.set("get_date",    lua.create_function(self::get_date)?)?;
     data.set("get_time",    lua.create_function(self::get_time)?)?;
@@ -71,18 +75,14 @@ fn get_list_aux(list: &mut Vec<String>, path: String, recurse: bool) -> anyhow::
     parameter(name = "path", info = "Path to file.", kind = "string"),
     parameter(
         name = "binary",
-        info = "Return the value as binary, or as a string.",
+        info = "Interpret the file data as UTF-8 string data, or as a MessagePack file.",
         kind = "boolean"
     ),
-    result(
-        name = "data",
-        info = "File data.",
-        kind(user_data(name = "table|string"))
-    )
+    result(name = "data", info = "File data.", kind(user_data(name = "any")))
 )]
 fn get_file(lua: &mlua::Lua, (path, binary): (String, bool)) -> mlua::Result<mlua::Value> {
     if binary {
-        Ok(lua.to_value(&std::fs::read(path)?)?)
+        value_from_pack(lua, std::fs::read(path)?)
     } else {
         Ok(lua.to_value(&std::fs::read_to_string(path)?)?)
     }
@@ -92,10 +92,26 @@ fn get_file(lua: &mlua::Lua, (path, binary): (String, bool)) -> mlua::Result<mlu
     from = "data",
     info = "Set the data of a file.",
     parameter(name = "path", info = "Path to file.", kind = "string"),
-    parameter(name = "data", info = "Data to write to file.", kind = "string")
+    parameter(
+        name = "data",
+        info = "Data to write to file.",
+        kind(user_data(name = "any"))
+    ),
+    parameter(
+        name = "binary",
+        info = "Interpret the file data as UTF-8 string data, or as a MessagePack file.",
+        kind = "boolean"
+    )
 )]
-fn set_file(_: &mlua::Lua, (path, data): (String, String)) -> mlua::Result<()> {
-    Ok(std::fs::write(path, data)?)
+fn set_file(
+    lua: &mlua::Lua,
+    (path, data, binary): (String, mlua::Value, bool),
+) -> mlua::Result<()> {
+    if binary {
+        Ok(std::fs::write(path, value_into_pack(lua, data)?)?)
+    } else {
+        Ok(std::fs::write(path, data.to_string()?)?)
+    }
 }
 
 #[function(
@@ -127,14 +143,14 @@ fn get_kind(_: &mlua::Lua, path: String) -> mlua::Result<Option<usize>> {
 
 #[function(
     from = "data",
-    info = "Serialize a Lua table as a string.",
+    info = "Serialize a Lua value as string.",
     parameter(
         name = "data",
-        info = "Lua table to serialize as a string.",
-        kind = "table"
+        info = "Lua value to serialize as string.",
+        kind(user_data(name = "any"))
     ),
     parameter(name = "pretty", info = "Pretty serialization.", kind = "boolean"),
-    result(name = "data", info = "Table as a string.", kind = "string")
+    result(name = "data", info = "Value as string.", kind = "string")
 )]
 fn into_string(_: &mlua::Lua, (data, pretty): (mlua::Value, bool)) -> mlua::Result<String> {
     let string = if pretty {
@@ -151,13 +167,17 @@ fn into_string(_: &mlua::Lua, (data, pretty): (mlua::Value, bool)) -> mlua::Resu
 
 #[function(
     from = "data",
-    info = "Deserialize a string as a Lua table.",
+    info = "Deserialize a string as a Lua value.",
     parameter(
         name = "data",
-        info = "String to deserialize as a table.",
+        info = "String to deserialize as value.",
         kind = "string"
     ),
-    result(name = "data", info = "String as a table.", kind = "table")
+    result(
+        name = "data",
+        info = "String as value.",
+        kind(user_data(name = "any"))
+    )
 )]
 fn from_string(lua: &mlua::Lua, data: String) -> mlua::Result<mlua::Value> {
     match serde_json::from_str::<Value>(&data) {
@@ -165,6 +185,44 @@ fn from_string(lua: &mlua::Lua, data: String) -> mlua::Result<mlua::Value> {
         Err(error) => Err(mlua::Error::external(error.to_string())),
     }
 }
+
+/*
+#[function(
+    from = "data",
+    info = "Serialize a Lua value as MessagePack data.",
+    parameter(
+        name = "data",
+        info = "Lua value to serialize.",
+        kind(user_data(name = "any"))
+    ),
+    result(name = "data", info = "Value as MessagePack data.", kind = "table")
+)]
+fn into_pack(lua: &mlua::Lua, data: mlua::Value) -> mlua::Result<Vec<u8>> {
+    let value: serde_value::Value = lua.from_value(data)?;
+    let value = map_error(rmp_serde::to_vec_named(&value))?;
+    Ok(compress_prepend_size(&value))
+}
+
+#[function(
+    from = "data",
+    info = "Deserialize MessagePack data as Lua value.",
+    parameter(
+        name = "data",
+        info = "MessagePack data to deserialize.",
+        kind = "table"
+    ),
+    result(
+        name = "data",
+        info = "MessagePack data as value.",
+        kind(user_data(name = "any"))
+    )
+)]
+fn from_pack(lua: &mlua::Lua, data: Vec<u8>) -> mlua::Result<mlua::Value> {
+    let data = map_error(decompress_size_prepended(&data))?;
+    let value: serde_value::Value = map_error(rmp_serde::from_slice(&data))?;
+    lua.to_value(&value)
+}
+*/
 
 #[function(
     from = "data",

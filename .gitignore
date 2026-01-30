@@ -3,7 +3,7 @@
 debug/
 target/
 main/
-user.json
+user.data
 out/
 error_*
 panic_*

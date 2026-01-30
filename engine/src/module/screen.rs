@@ -17,8 +17,8 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     screen.set("wipe",                lua.create_function(self::wipe)?)?;
     screen.set("draw",                lua.create_function(self::draw)?)?;
     screen.set("draw_2D",             lua.create_function(self::draw_2D)?)?;
-    screen.set("draw_2D_begin",             lua.create_function(self::draw_2D_begin)?)?;
-    screen.set("draw_2D_close",             lua.create_function(self::draw_2D_close)?)?;
+    screen.set("draw_2D_begin",       lua.create_function(self::draw_2D_begin)?)?;
+    screen.set("draw_2D_close",       lua.create_function(self::draw_2D_close)?)?;
     screen.set("draw_scissor",        lua.create_function(self::draw_scissor)?)?;
     screen.set("draw_scissor_begin",  lua.create_function(self::draw_scissor_begin)?)?;
     screen.set("draw_scissor_close",  lua.create_function(self::draw_scissor_close)?)?;
