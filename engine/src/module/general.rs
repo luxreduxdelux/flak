@@ -4,6 +4,8 @@ use raylib::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
 
+use crate::ScriptData;
+
 //================================================================
 
 #[derive(Serialize, Deserialize)]
@@ -71,6 +73,65 @@ pub fn value_from_pack(lua: &mlua::Lua, data: &[u8]) -> mlua::Result<mlua::Value
     } else {
         let value: serde_value::Value = map_error(rmp_serde::from_slice(data))?;
         lua.to_value(&value)
+    }
+}
+
+pub fn secure_file_get(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
+    let data = ScriptData::get(lua);
+
+    if data.safe {
+        let path = std::path::Path::new(path);
+        let root = std::fs::canonicalize(".")?;
+
+        if path.is_absolute() {
+            return Err(mlua::Error::RuntimeError(format!(
+                "secure_file_get(): Absolute path is forbidden {path:?}.",
+            ))
+            .into());
+        }
+
+        let candidate = std::fs::canonicalize(root.join(path))?;
+
+        if !candidate.starts_with(&root) {
+            return Err(mlua::Error::RuntimeError(format!(
+                "secure_file_get(): Working directory escape is forbidden {path:?}.",
+            ))
+            .into());
+        }
+
+        Ok(())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn secure_file_create(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
+    let data = ScriptData::get(lua);
+
+    if data.safe {
+        let path = std::path::Path::new(path);
+        let root = std::fs::canonicalize(".")?;
+
+        if path.is_absolute() {
+            return Err(mlua::Error::RuntimeError(format!(
+                "secure_file_create(): Absolute path is forbidden {path:?}.",
+            ))
+            .into());
+        }
+
+        let parent = path.parent().unwrap_or(std::path::Path::new("."));
+        let parent = std::fs::canonicalize(root.join(parent))?;
+
+        if !parent.starts_with(&root) {
+            return Err(mlua::Error::RuntimeError(format!(
+                "secure_file_create(): Working directory escape is forbidden {path:?}.",
+            ))
+            .into());
+        }
+
+        Ok(())
+    } else {
+        Ok(())
     }
 }
 

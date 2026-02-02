@@ -86,6 +86,31 @@ enum ScriptState {
     Failure(String),
 }
 
+pub struct ScriptData {
+    pub safe: bool,
+}
+
+impl ScriptData {
+    pub fn get(lua: &mlua::Lua) -> mlua::AppDataRef<'_, Self> {
+        lua.app_data_ref()
+            .expect("secure_file_get(): Unable to get ScriptData.")
+    }
+}
+
+impl Default for ScriptData {
+    fn default() -> Self {
+        let mut safe = true;
+
+        for argument in std::env::args() {
+            if argument == "--no-safe" {
+                safe = false;
+            }
+        }
+
+        Self { safe }
+    }
+}
+
 struct Script {
     lua: Lua,
     state: ScriptState,
@@ -104,7 +129,18 @@ impl Script {
     const HOOK_NAME: &str = "flak";
 
     fn new(set_window_global: bool) -> anyhow::Result<Self> {
-        let lua = unsafe { Lua::unsafe_new() };
+        let script_data = ScriptData::default();
+
+        let lua = if script_data.safe {
+            // FFI library is unfortunately necessary for the 'scene' Flak standard library.
+            unsafe {
+                Lua::unsafe_new_with(LuaStdLib::ALL_SAFE | LuaStdLib::FFI, LuaOptions::default())
+            }
+        } else {
+            unsafe { Lua::unsafe_new() }
+        };
+
+        lua.set_app_data(script_data);
 
         let main = std::path::Path::new(Self::MAIN_FILE);
 

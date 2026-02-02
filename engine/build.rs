@@ -6,7 +6,8 @@ flak = {}
 "#;
 const META_FILE: &str = "meta.lua";
 const PATH_SOURCE: &str = "../engine_macro/out";
-const PATH_TARGET: &str = "../engine_basic";
+// Should be "../engine_basic" any other moment, but for now, it's important that it is written out to the working directory for the game.
+const PATH_TARGET: &str = "../main";
 
 //================================================================
 
