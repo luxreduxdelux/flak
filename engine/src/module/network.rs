@@ -155,9 +155,7 @@ impl Server {
                 .server
                 .receive_message(client_id, DefaultChannel::Unreliable)
             {
-                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
-                let message = lua.to_value(&message)?;
-
+                let message = value_from_pack(lua, &message)?;
                 message_list.push(lua.to_value(&(client_id, message))?);
             }
 
@@ -165,9 +163,7 @@ impl Server {
                 .server
                 .receive_message(client_id, DefaultChannel::ReliableOrdered)
             {
-                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
-                let message = lua.to_value(&message)?;
-
+                let message = value_from_pack(lua, &message)?;
                 message_list.push(lua.to_value(&(client_id, message))?);
             }
 
@@ -175,9 +171,7 @@ impl Server {
                 .server
                 .receive_message(client_id, DefaultChannel::ReliableUnordered)
             {
-                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
-                let message = lua.to_value(&message)?;
-
+                let message = value_from_pack(lua, &message)?;
                 message_list.push(lua.to_value(&(client_id, message))?);
             }
         }
@@ -202,8 +196,7 @@ impl Server {
         this: &mut Self,
         (message, channel): (mlua::Value, usize),
     ) -> mlua::Result<()> {
-        let message: serde_value::Value = lua.from_value(message)?;
-        let message = map_error(rmp_serde::to_vec_named(&message))?;
+        let message = value_into_pack(lua, message)?;
         let channel = match channel {
             0 => DefaultChannel::Unreliable,
             1 => DefaultChannel::ReliableOrdered,
@@ -231,8 +224,7 @@ impl Server {
         this: &mut Self,
         (message, channel, client): (mlua::Value, usize, u64),
     ) -> mlua::Result<()> {
-        let message: serde_value::Value = lua.from_value(message)?;
-        let message = map_error(rmp_serde::to_vec_named(&message))?;
+        let message = value_into_pack(lua, message)?;
         let channel = match channel {
             0 => DefaultChannel::Unreliable,
             1 => DefaultChannel::ReliableOrdered,
@@ -260,8 +252,7 @@ impl Server {
         this: &mut Self,
         (message, channel, client): (mlua::Value, usize, u64),
     ) -> mlua::Result<()> {
-        let message: serde_value::Value = lua.from_value(message)?;
-        let message = map_error(rmp_serde::to_vec_named(&message))?;
+        let message = value_into_pack(lua, message)?;
         let channel = match channel {
             0 => DefaultChannel::Unreliable,
             1 => DefaultChannel::ReliableOrdered,
@@ -295,9 +286,7 @@ impl Server {
         client: u64,
     ) -> mlua::Result<Option<mlua::Value>> {
         let user_data = if let Some(user_data) = this.transport.user_data(client) {
-            let message: serde_value::Value = map_error(rmp_serde::from_slice(&user_data))?;
-            let message = lua.to_value(&message)?;
-
+            let message = value_from_pack(lua, &user_data)?;
             Some(message)
         } else {
             None
@@ -385,8 +374,7 @@ impl Client {
         );
 
         let user_data = if let Some(user_data) = user_data {
-            let user_data: serde_value::Value = lua.from_value(user_data)?;
-            let mut user_data = map_error(rmp_serde::to_vec(&user_data))?;
+            let mut user_data = value_into_pack(lua, user_data)?;
             user_data.resize(256, 0);
 
             Some(user_data.try_into().unwrap())
@@ -431,16 +419,12 @@ impl Client {
 
         if this.client.is_connected() {
             while let Some(message) = this.client.receive_message(DefaultChannel::Unreliable) {
-                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
-                let message = lua.to_value(&message)?;
-
+                let message = value_from_pack(lua, &message)?;
                 message_list.push(lua.to_value(&message)?);
             }
 
             while let Some(message) = this.client.receive_message(DefaultChannel::ReliableOrdered) {
-                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
-                let message = lua.to_value(&message)?;
-
+                let message = value_from_pack(lua, &message)?;
                 message_list.push(lua.to_value(&message)?);
             }
 
@@ -448,9 +432,7 @@ impl Client {
                 .client
                 .receive_message(DefaultChannel::ReliableUnordered)
             {
-                let message: serde_value::Value = map_error(rmp_serde::from_slice(&message))?;
-                let message = lua.to_value(&message)?;
-
+                let message = value_from_pack(lua, &message)?;
                 message_list.push(lua.to_value(&message)?);
             }
         }
@@ -476,8 +458,7 @@ impl Client {
         (message, channel): (mlua::Value, usize),
     ) -> mlua::Result<()> {
         if this.client.is_connected() {
-            let message: serde_value::Value = lua.from_value(message)?;
-            let message = map_error(rmp_serde::to_vec(&message))?;
+            let message = value_into_pack(lua, message)?;
             let channel = match channel {
                 0 => DefaultChannel::Unreliable,
                 1 => DefaultChannel::ReliableOrdered,

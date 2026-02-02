@@ -82,7 +82,7 @@ fn get_list_aux(list: &mut Vec<String>, path: String, recurse: bool) -> anyhow::
 )]
 fn get_file(lua: &mlua::Lua, (path, binary): (String, bool)) -> mlua::Result<mlua::Value> {
     if binary {
-        value_from_pack(lua, std::fs::read(path)?)
+        value_from_pack(lua, &std::fs::read(path)?)
     } else {
         Ok(lua.to_value(&std::fs::read_to_string(path)?)?)
     }

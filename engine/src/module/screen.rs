@@ -23,6 +23,7 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     screen.set("draw_scissor_begin",  lua.create_function(self::draw_scissor_begin)?)?;
     screen.set("draw_scissor_close",  lua.create_function(self::draw_scissor_close)?)?;
     screen.set("draw_box_2",          lua.create_function(self::draw_box_2)?)?;
+    screen.set("draw_box_2_round",    lua.create_function(self::draw_box_2_round)?)?;
     screen.set("draw_line",           lua.create_function(self::draw_line)?)?;
     screen.set("get_screen_to_world", lua.create_function(self::get_screen_to_world)?)?;
     screen.set("get_world_to_screen", lua.create_function(self::get_world_to_screen)?)?;
@@ -207,6 +208,41 @@ fn draw_box_2(
         };
 
         ffi::DrawRectanglePro(box_2.into(), point.into(), angle, color.into());
+
+        Ok(())
+    }
+}
+
+#[function(
+    from = "screen",
+    info = "Draw a 2D box, with edge-rounding.",
+    parameter(name = "box_2", info = "2D box to draw.", kind = "Box2"),
+    parameter(
+        name = "round",
+        info = "Edge round scale of the 2D box.",
+        kind = "number",
+    ),
+    parameter(name = "count", info = "Edge count of the 2D box.", kind = "number"),
+    parameter(
+        name = "color",
+        info = "Color of the 2D box.",
+        kind = "Color",
+        optional = true
+    )
+)]
+fn draw_box_2_round(
+    lua: &mlua::Lua,
+    (box_2, round, count, color): (mlua::Value, f32, i32, Option<mlua::Value>),
+) -> mlua::Result<()> {
+    unsafe {
+        let box_2: Box2 = lua.from_value(box_2)?;
+        let color: Color = if let Some(color) = color {
+            lua.from_value(color)?
+        } else {
+            Color::WHITE
+        };
+
+        ffi::DrawRectangleRounded(box_2.into(), round, count, color.into());
 
         Ok(())
     }

@@ -38,16 +38,40 @@ impl From<Camera2D> for ffi::Camera2D {
 
 //================================================================
 
+const COMPRESS_SIZE: usize = 128;
+
 pub fn value_into_pack(lua: &mlua::Lua, data: mlua::Value) -> mlua::Result<Vec<u8>> {
     let value: serde_value::Value = lua.from_value(data)?;
     let value = map_error(rmp_serde::to_vec_named(&value))?;
-    Ok(compress_prepend_size(&value))
+
+    if value.len() >= self::COMPRESS_SIZE {
+        let value = compress_prepend_size(&value);
+        let mut result = vec![1];
+        result.extend(value);
+        Ok(result)
+    } else {
+        let mut result = vec![0];
+        result.extend(value);
+        Ok(result)
+    }
 }
 
-pub fn value_from_pack(lua: &mlua::Lua, data: Vec<u8>) -> mlua::Result<mlua::Value> {
-    let data = map_error(decompress_size_prepended(&data))?;
-    let value: serde_value::Value = map_error(rmp_serde::from_slice(&data))?;
-    lua.to_value(&value)
+pub fn value_from_pack(lua: &mlua::Lua, data: &[u8]) -> mlua::Result<mlua::Value> {
+    if let Some(compress) = data.first() {
+        let slice = &data[1..];
+
+        if *compress == 1 {
+            let slice = map_error(decompress_size_prepended(slice))?;
+            let value: serde_value::Value = map_error(rmp_serde::from_slice(&slice))?;
+            lua.to_value(&value)
+        } else {
+            let value: serde_value::Value = map_error(rmp_serde::from_slice(slice))?;
+            lua.to_value(&value)
+        }
+    } else {
+        let value: serde_value::Value = map_error(rmp_serde::from_slice(data))?;
+        lua.to_value(&value)
+    }
 }
 
 pub fn c_string(text: &str) -> mlua::Result<CString> {
