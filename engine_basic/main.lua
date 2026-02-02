@@ -1,0 +1,7 @@
+require("script/base/standard")
+require("script/base/logger")
+require("script/base/window")
+require("script/base/socket")
+require("script/base/input")
+require("script/base/asset")
+require("script/base/space")

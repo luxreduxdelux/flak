@@ -5,8 +5,8 @@ flak = {}
 
 "#;
 const META_FILE: &str = "meta.lua";
-const META_PATH: &str = "../engine_macro/out";
-const MAIN_PATH: &str = "../main";
+const PATH_SOURCE: &str = "../engine_macro/out";
+const PATH_TARGET: &str = "../engine_basic";
 
 //================================================================
 
@@ -14,8 +14,8 @@ fn main() {
     let mut buffer = self::META_HEADER.to_string();
 
     // Read every file in the class/function/method meta directory.
-    for path in std::fs::read_dir(self::META_PATH)
-        .unwrap_or_else(|_| panic!("The path \"{}\" does not exist.", self::META_PATH))
+    for path in std::fs::read_dir(self::PATH_SOURCE)
+        .unwrap_or_else(|_| panic!("The path \"{}\" does not exist.", self::PATH_SOURCE))
     {
         // Read the file, remove it, and push its data to the buffer.
         let path = path.expect("Unable to read path.").path();
@@ -28,11 +28,11 @@ fn main() {
     //================================================================
 
     // Check if the main path is a folder.
-    let path = std::path::Path::new(self::MAIN_PATH);
+    let path = std::path::Path::new(self::PATH_TARGET);
 
     if path.is_dir() {
         // Write meta file.
-        std::fs::write(format!("{}/{}", self::MAIN_PATH, self::META_FILE), buffer)
+        std::fs::write(format!("{}/{}", self::PATH_TARGET, self::META_FILE), buffer)
             .expect("Unable to write meta file.");
     }
 }

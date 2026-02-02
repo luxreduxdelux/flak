@@ -262,19 +262,27 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             ScriptState::Failure(ref error) => {
-                let code =
-                    throw_error(script.fail.call::<bool>((&script.table, error.to_string())));
+                let code = throw_error(
+                    script
+                        .fail
+                        .call::<usize>((&script.table, error.to_string())),
+                );
 
-                if code {
-                    let new = Script::new(true);
-
-                    if let Err(error) = new {
-                        script.state = ScriptState::Failure(error.to_string());
-                    } else if let Ok(new) = new {
-                        script = new;
+                match code {
+                    0 => {
+                        script.state = ScriptState::Success;
+                        println!("Discard");
                     }
-                } else {
-                    break;
+                    1 => {
+                        let new = Script::new(true);
+
+                        if let Err(error) = new {
+                            script.state = ScriptState::Failure(error.to_string());
+                        } else if let Ok(new) = new {
+                            script = new;
+                        }
+                    }
+                    _ => break,
                 }
             }
         }

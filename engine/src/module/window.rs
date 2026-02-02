@@ -229,31 +229,69 @@ fn is_scale_new(_: &mlua::Lua, _: ()) -> mlua::Result<bool> {
     ),
     parameter(name = "name", info = "Message window name.", kind = "string"),
     parameter(name = "text", info = "Message window text.", kind = "string"),
+    parameter(
+        name = "button_a",
+        info = "Message window button text (A).",
+        kind = "string"
+    ),
+    parameter(
+        name = "button_b",
+        info = "Message window button text (B).",
+        kind = "string",
+        optional = true
+    ),
+    parameter(
+        name = "button_c",
+        info = "Message window button text (C).",
+        kind = "string",
+        optional = true
+    ),
     result(
-        name = "dialog",
-        info = "True if the window size is different.",
-        kind = "boolean"
+        name = "button",
+        info = "Text of the button that was hit.",
+        kind = "string"
     )
 )]
 fn dialog_message(
     _: &mlua::Lua,
-    (kind, name, text): (usize, String, String),
-) -> mlua::Result<bool> {
+    (kind, name, text, button_a, button_b, button_c): (
+        usize,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+    ),
+) -> mlua::Result<String> {
     let kind = match kind {
         0 => rfd::MessageLevel::Info,
         1 => rfd::MessageLevel::Warning,
         _ => rfd::MessageLevel::Error,
     };
 
+    let button = {
+        if let Some(ref button_b) = button_b
+            && let Some(button_c) = button_c
+        {
+            rfd::MessageButtons::YesNoCancelCustom(button_c, button_a.clone(), button_b.to_string())
+        } else if let Some(ref button_b) = button_b {
+            rfd::MessageButtons::OkCancelCustom(button_b.to_string(), button_a.clone())
+        } else {
+            rfd::MessageButtons::OkCustom(button_a.clone())
+        }
+    };
+
     let result = rfd::MessageDialog::new()
         .set_level(kind)
         .set_title(name)
         .set_description(text)
-        .set_buttons(rfd::MessageButtons::YesNo)
+        .set_buttons(button)
         .show();
 
     match result {
-        rfd::MessageDialogResult::Yes => Ok(true),
-        _ => Ok(false),
+        rfd::MessageDialogResult::Custom(string) => Ok(string),
+        rfd::MessageDialogResult::Cancel => Ok(button_b.unwrap()),
+        rfd::MessageDialogResult::Ok => Ok(button_a),
+        _ => Ok("".to_string()),
     }
 }
