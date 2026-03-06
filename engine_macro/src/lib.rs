@@ -175,6 +175,8 @@ enum ValueKind {
     Camera3D,
     #[darling(rename = "Color")]
     Color,
+    #[darling(rename = "Ray")]
+    Ray,
     UserData {
         name: String,
     },
@@ -195,6 +197,7 @@ impl Display for ValueKind {
             ValueKind::Camera2D => f.write_str("Camera2D"),
             ValueKind::Camera3D => f.write_str("Camera3D"),
             ValueKind::Color => f.write_str("Color"),
+            ValueKind::Ray => f.write_str("Ray"),
             ValueKind::UserData { name } => f.write_str(name),
         }
     }

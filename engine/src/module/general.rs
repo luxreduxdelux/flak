@@ -25,6 +25,28 @@ impl From<Box2> for ffi::Rectangle {
 //================================================================
 
 #[derive(Serialize, Deserialize)]
+pub struct Box3 {
+    pub min: Vector3,
+    pub max: Vector3,
+}
+
+impl From<Box3> for ffi::BoundingBox {
+    fn from(value: Box3) -> Self {
+        unsafe { std::mem::transmute(value) }
+    }
+}
+
+//================================================================
+
+#[derive(Serialize, Deserialize)]
+pub struct Ray {
+    pub source: Vector3,
+    pub target: Vector3,
+}
+
+//================================================================
+
+#[derive(Serialize, Deserialize)]
 pub struct Camera2D {
     pub point: Vector2,
     pub shift: Vector2,
@@ -34,6 +56,23 @@ pub struct Camera2D {
 
 impl From<Camera2D> for ffi::Camera2D {
     fn from(value: Camera2D) -> Self {
+        unsafe { std::mem::transmute(value) }
+    }
+}
+
+//================================================================
+
+#[derive(Serialize, Deserialize)]
+pub struct Camera3D {
+    pub point: Vector3,
+    pub focus: Vector3,
+    pub angle: Vector3,
+    pub zoom: f32,
+    pub mode: i32,
+}
+
+impl From<Camera3D> for ffi::Camera3D {
+    fn from(value: Camera3D) -> Self {
         unsafe { std::mem::transmute(value) }
     }
 }
@@ -76,7 +115,7 @@ pub fn value_from_pack(lua: &mlua::Lua, data: &[u8]) -> mlua::Result<mlua::Value
     }
 }
 
-pub fn secure_file_get(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
+pub fn safe_file_get(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
     let data = ScriptData::get(lua);
 
     if data.safe {
@@ -85,7 +124,7 @@ pub fn secure_file_get(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
 
         if path.is_absolute() {
             return Err(mlua::Error::RuntimeError(format!(
-                "secure_file_get(): Absolute path is forbidden {path:?}.",
+                "safe_file_get(): Absolute path is forbidden {path:?}.",
             ))
             .into());
         }
@@ -94,7 +133,7 @@ pub fn secure_file_get(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
 
         if !candidate.starts_with(&root) {
             return Err(mlua::Error::RuntimeError(format!(
-                "secure_file_get(): Working directory escape is forbidden {path:?}.",
+                "safe_file_get(): Working directory escape is forbidden {path:?}.",
             ))
             .into());
         }
@@ -105,7 +144,7 @@ pub fn secure_file_get(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
     }
 }
 
-pub fn secure_file_create(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
+pub fn safe_file_set(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
     let data = ScriptData::get(lua);
 
     if data.safe {
@@ -114,7 +153,7 @@ pub fn secure_file_create(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
 
         if path.is_absolute() {
             return Err(mlua::Error::RuntimeError(format!(
-                "secure_file_create(): Absolute path is forbidden {path:?}.",
+                "safe_file_set(): Absolute path is forbidden {path:?}.",
             ))
             .into());
         }
@@ -124,7 +163,7 @@ pub fn secure_file_create(lua: &mlua::Lua, path: &str) -> anyhow::Result<()> {
 
         if !parent.starts_with(&root) {
             return Err(mlua::Error::RuntimeError(format!(
-                "secure_file_create(): Working directory escape is forbidden {path:?}.",
+                "safe_file_set(): Working directory escape is forbidden {path:?}.",
             ))
             .into());
         }

@@ -235,6 +235,14 @@ impl Texture {
         }
     }
 
+    #[method(from = "Texture", info = "Generate texture mip-map.")]
+    fn generate_mip_map(_: &mlua::Lua, this: &mut Self, _: ()) -> mlua::Result<()> {
+        unsafe {
+            ffi::GenTextureMipmaps(&mut this.inner);
+            Ok(())
+        }
+    }
+
     #[method(
         from = "Texture",
         info = "Get texture identifier.",
@@ -255,6 +263,22 @@ impl Texture {
             this.inner.height as f32,
         ))
     }
+
+    #[method(
+        from = "Texture",
+        info = "Set texture filter.",
+        parameter(
+            name = "filter",
+            info = "Texture filter.",
+            kind(user_data(name = "TextureFilterKind"))
+        )
+    )]
+    fn set_filter(_: &mlua::Lua, this: &Self, filter: i32) -> mlua::Result<()> {
+        unsafe {
+            ffi::SetTextureFilter(this.inner, filter);
+            Ok(())
+        }
+    }
 }
 
 impl Drop for Texture {
@@ -268,9 +292,11 @@ impl Drop for Texture {
 impl mlua::UserData for Texture {
     #[rustfmt::skip]
     fn add_methods<M: mlua::UserDataMethods<Self>>(method: &mut M) {
-        method.add_method("draw",            Self::draw);
-        method.add_method("get_identifier",  Self::get_identifier);
-        method.add_method("get_scale",       Self::get_scale);
+        method.add_method("draw",                 Self::draw);
+        method.add_method_mut("generate_mip_map", Self::generate_mip_map);
+        method.add_method("get_identifier",       Self::get_identifier);
+        method.add_method("get_scale",            Self::get_scale);
+        method.add_method("set_filter",           Self::set_filter);
     }
 }
 

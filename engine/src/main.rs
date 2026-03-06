@@ -134,7 +134,10 @@ impl Script {
         let lua = if script_data.safe {
             // FFI library is unfortunately necessary for the 'scene' Flak standard library.
             unsafe {
-                Lua::unsafe_new_with(LuaStdLib::ALL_SAFE | LuaStdLib::FFI, LuaOptions::default())
+                Lua::unsafe_new_with(
+                    LuaStdLib::ALL_SAFE | LuaStdLib::FFI | LuaStdLib::DEBUG,
+                    LuaOptions::default(),
+                )
             }
         } else {
             unsafe { Lua::unsafe_new() }
@@ -208,15 +211,18 @@ impl Script {
         if window {
             crate::module::window::set_global(&self.lua, &global)?;
             crate::module::screen::set_global(&self.lua, &global)?;
+            crate::module::shader::set_global(&self.lua, &global)?;
             crate::module::texture::set_global(&self.lua, &global)?;
             crate::module::font::set_global(&self.lua, &global)?;
             crate::module::sound::set_global(&self.lua, &global)?;
             crate::module::music::set_global(&self.lua, &global)?;
+            crate::module::model::set_global(&self.lua, &global)?;
             crate::module::input::set_global(&self.lua, &global)?;
         } else {
             crate::module::data::set_global(&self.lua, &global)?;
             crate::module::archive::set_global(&self.lua, &global)?;
             crate::module::network::set_global(&self.lua, &global)?;
+            crate::module::physical::set_global(&self.lua, &global)?;
 
             self.lua.globals().set(
                 "print",

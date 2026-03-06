@@ -41,8 +41,9 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     mouse.set("get_last_press", lua.create_function(self::mouse::get_last_press)?)?;
     mouse.set("get_point",      lua.create_function(self::mouse::get_point)?)?;
     mouse.set("get_delta",      lua.create_function(self::mouse::get_delta)?)?;
-    mouse.set("set_point",      lua.create_function(self::mouse::set_point)?)?;
     mouse.set("get_wheel",      lua.create_function(self::mouse::get_wheel)?)?;
+    mouse.set("set_point",      lua.create_function(self::mouse::set_point)?)?;
+    mouse.set("set_cursor",     lua.create_function(self::mouse::set_cursor)?)?;
     mouse.set("show_cursor",    lua.create_function(self::mouse::show_cursor)?)?;
     mouse.set("lock_cursor",    lua.create_function(self::mouse::lock_cursor)?)?;
 
@@ -295,6 +296,15 @@ mod mouse {
 
     #[function(
         from = "input.mouse",
+        info = "Get the scroll wheel delta of the mouse.",
+        result(name = "delta", info = "Mouse wheel delta.", kind = "Vector2")
+    )]
+    pub fn get_wheel(lua: &mlua::Lua, _: ()) -> mlua::Result<mlua::Value> {
+        Ok(unsafe { lua.to_value(&Vector2::from(ffi::GetMouseWheelMoveV()))? })
+    }
+
+    #[function(
+        from = "input.mouse",
         info = "Set the point of the mouse cursor on-screen.",
         parameter(name = "point", info = "Mouse cursor point.", kind = "Vector2")
     )]
@@ -308,11 +318,18 @@ mod mouse {
 
     #[function(
         from = "input.mouse",
-        info = "Get the scroll wheel delta of the mouse.",
-        result(name = "delta", info = "Mouse wheel delta.", kind = "Vector2")
+        info = "Set the mouse cursor icon.",
+        parameter(
+            name = "cursor",
+            info = "Mouse cursor icon.",
+            kind(user_data(name = "CursorKind"))
+        )
     )]
-    pub fn get_wheel(lua: &mlua::Lua, _: ()) -> mlua::Result<mlua::Value> {
-        Ok(unsafe { lua.to_value(&Vector2::from(ffi::GetMouseWheelMoveV()))? })
+    pub fn set_cursor(_: &mlua::Lua, cursor: i32) -> mlua::Result<()> {
+        unsafe {
+            ffi::SetMouseCursor(cursor);
+            Ok(())
+        }
     }
 
     #[function(

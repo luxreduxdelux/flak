@@ -61,7 +61,9 @@ impl Archive {
             kind(user_data(name = "Archive"))
         )
     )]
-    fn new(_: &mlua::Lua, path: String) -> mlua::Result<Self> {
+    fn new(lua: &mlua::Lua, path: String) -> mlua::Result<Self> {
+        safe_file_get(lua, &path)?;
+
         let inner = std::fs::File::open(path)?;
         let inner = map_error(zip::ZipArchive::new(inner))?;
 

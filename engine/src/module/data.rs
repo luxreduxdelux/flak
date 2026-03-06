@@ -14,15 +14,16 @@ use serde_json::Value;
 pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     let data = lua.create_table()?;
 
-    data.set("get_list",    lua.create_function(self::get_list)?)?;
-    data.set("get_file",    lua.create_function(self::get_file)?)?;
-    data.set("set_file",    lua.create_function(self::set_file)?)?;
-    data.set("get_kind",    lua.create_function(self::get_kind)?)?;
-    data.set("into_string", lua.create_function(self::into_string)?)?;
-    data.set("from_string", lua.create_function(self::from_string)?)?;
-    data.set("get_system",  lua.create_function(self::get_system)?)?;
-    data.set("get_date",    lua.create_function(self::get_date)?)?;
-    data.set("get_time",    lua.create_function(self::get_time)?)?;
+    data.set("get_list",           lua.create_function(self::get_list)?)?;
+    data.set("get_file",           lua.create_function(self::get_file)?)?;
+    data.set("set_file",           lua.create_function(self::set_file)?)?;
+    data.set("get_kind",           lua.create_function(self::get_kind)?)?;
+    data.set("into_string",        lua.create_function(self::into_string)?)?;
+    data.set("from_string",        lua.create_function(self::from_string)?)?;
+    data.set("get_system",         lua.create_function(self::get_system)?)?;
+    data.set("get_argument_list",  lua.create_function(self::get_argument_list)?)?;
+    data.set("get_date",           lua.create_function(self::get_date)?)?;
+    data.set("get_time",           lua.create_function(self::get_time)?)?;
 
     global.set("data", data)?;
 
@@ -42,7 +43,9 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
         kind = "table"
     )
 )]
-fn get_list(_: &mlua::Lua, (path, recurse): (String, bool)) -> mlua::Result<Vec<String>> {
+fn get_list(lua: &mlua::Lua, (path, recurse): (String, bool)) -> mlua::Result<Vec<String>> {
+    safe_file_get(lua, &path)?;
+
     let mut list = Vec::new();
     get_list_aux(&mut list, path, recurse)?;
 
@@ -78,7 +81,7 @@ fn get_list_aux(list: &mut Vec<String>, path: String, recurse: bool) -> anyhow::
     result(name = "data", info = "File data.", kind(user_data(name = "any")))
 )]
 fn get_file(lua: &mlua::Lua, (path, binary): (String, bool)) -> mlua::Result<mlua::Value> {
-    secure_file_get(lua, &path)?;
+    safe_file_get(lua, &path)?;
 
     if binary {
         value_from_pack(lua, &std::fs::read(path)?)
@@ -106,7 +109,7 @@ fn set_file(
     lua: &mlua::Lua,
     (path, data, binary): (String, mlua::Value, bool),
 ) -> mlua::Result<()> {
-    secure_file_create(lua, &path)?;
+    safe_file_set(lua, &path)?;
 
     if binary {
         Ok(std::fs::write(path, value_into_pack(lua, data)?)?)
@@ -206,6 +209,20 @@ fn get_system(_: &mlua::Lua, _: ()) -> mlua::Result<usize> {
         "ios"     => Ok(4),
         _         => Ok(5),
     }
+}
+
+#[function(
+    from = "data",
+    info = "Get the command line argument list.",
+    result(
+        name = "list",
+        info = "Command line argument list.",
+        kind(user_data(name = "string[]"))
+    )
+)]
+#[rustfmt::skip]
+fn get_argument_list(_: &mlua::Lua, _: ()) -> mlua::Result<Vec<String>> {
+    Ok(std::env::args().map(|x| x.to_string()).collect())
 }
 
 #[function(

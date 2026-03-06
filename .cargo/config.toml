@@ -1,0 +1,8 @@
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+  "-C", "link-arg=-Wl,--allow-multiple-definition"
+]
+
+# Necessary for compatibility with Win32.
+[target.x86_64-pc-windows-gnu.env]
+CFLAGS = "-DShowCursor=RaylibShowCursor -DCloseWindow=RaylibCloseWindow"

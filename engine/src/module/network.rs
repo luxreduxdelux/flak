@@ -93,6 +93,8 @@ impl Server {
             port,
         );
 
+        println!("{address:?}");
+
         let socket: UdpSocket = UdpSocket::bind(address)?;
         let server_config = ServerConfig {
             current_time: map_error(SystemTime::now().duration_since(SystemTime::UNIX_EPOCH))?,
