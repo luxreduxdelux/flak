@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["engine", "engine_macro"]
+members = ["source/engine", "source/engine_macro"]
 
 [profile.release]
 opt-level     = 3

@@ -2,13 +2,13 @@
 	"folders":
 	[
         {
-            "path": "engine",
+            "path": "source/engine",
         },
         {
-            "path": "engine_macro",
+            "path": "source/engine_macro",
         },
         {
-            "path": "engine_basic",
+            "path": "source/engine_basic",
         }
 	]
 }

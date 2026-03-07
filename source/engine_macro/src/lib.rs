@@ -6,7 +6,7 @@ use syn::{ItemFn, ItemStruct};
 
 //================================================================
 
-const META_PATH: &str = "engine_macro/out";
+const META_PATH: &str = "source/engine_macro/out";
 
 //================================================================
 

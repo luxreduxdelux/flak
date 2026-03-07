@@ -28,12 +28,28 @@ use std::time::SystemTime;
 pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     let network = lua.create_table()?;
 
-    network.set("new_server", lua.create_function(self::Server::new_server)?)?;
-    network.set("new_client", lua.create_function(self::Client::new_client)?)?;
+    network.set("get_address", lua.create_function(self::get_address)?)?;
+    network.set("new_server",  lua.create_function(self::Server::new_server)?)?;
+    network.set("new_client",  lua.create_function(self::Client::new_client)?)?;
 
     global.set("network", network)?;
 
     Ok(())
+}
+
+//================================================================
+
+#[function(
+    from = "network",
+    info = "Get the internal and external IP address.",
+    result(name = "internal", info = "Internal address.", kind = "string"),
+    result(name = "external", info = "External address.", kind = "string")
+)]
+fn get_address(_: &mlua::Lua, _: ()) -> mlua::Result<(String, String)> {
+    let internal = local_ip_address::local_ip().unwrap();
+    let external = public_ip_address::perform_lookup(None).unwrap().ip;
+
+    Ok((internal.to_string(), external.to_string()))
 }
 
 //================================================================
@@ -92,8 +108,6 @@ impl Server {
             IpAddr::V4(Ipv4Addr::new(address_a, address_b, address_c, address_d)),
             port,
         );
-
-        println!("{address:?}");
 
         let socket: UdpSocket = UdpSocket::bind(address)?;
         let server_config = ServerConfig {
