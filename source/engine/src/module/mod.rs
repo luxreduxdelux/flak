@@ -1,5 +1,6 @@
 pub mod archive;
 pub mod data;
+pub mod discord;
 pub mod font;
 pub mod general;
 pub mod input;

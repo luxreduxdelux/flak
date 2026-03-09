@@ -45,8 +45,15 @@ impl Model {
 
             if ffi::IsModelValid(inner) {
                 let mut count = 0;
-                let animation = ffi::LoadModelAnimations(c_string(&path)?.as_ptr(), &mut count);
-                let animation = Vec::from_raw_parts(animation, count as usize, count as usize);
+                let animation = {
+                    let pointer = ffi::LoadModelAnimations(c_string(&path)?.as_ptr(), &mut count);
+
+                    if pointer.is_null() {
+                        Vec::default()
+                    } else {
+                        Vec::from_raw_parts(pointer, count as usize, count as usize)
+                    }
+                };
 
                 Ok(Self { inner, animation })
             } else {

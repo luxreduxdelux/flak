@@ -47,7 +47,8 @@ impl Shader {
         let mut data_vs_ptr: *const i8 = std::ptr::null();
         let mut data_fs_ptr: *const i8 = std::ptr::null();
 
-        let data_vs = if let Some(data_vs) = data_vs {
+        // TO-DO test if we can actually drop this variable?
+        let _data_vs = if let Some(data_vs) = data_vs {
             let string = c_string(&data_vs)?;
             data_vs_ptr = string.as_ptr();
             Some(string)
@@ -55,7 +56,7 @@ impl Shader {
             None
         };
 
-        let data_fs = if let Some(data_fs) = data_fs {
+        let _data_fs = if let Some(data_fs) = data_fs {
             let string = c_string(&data_fs)?;
             data_fs_ptr = string.as_ptr();
             Some(string)

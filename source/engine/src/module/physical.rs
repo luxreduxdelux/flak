@@ -46,7 +46,7 @@ impl Physical {
         )
     )]
     fn new(_: &mlua::Lua, _: ()) -> mlua::Result<Self> {
-        let mut physical = Self {
+        let physical = Self {
             integration_parameters: IntegrationParameters::default(),
             physics_pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(),
@@ -363,7 +363,7 @@ impl Physical {
             solid.shape(),
             solid.position(),
             speed,
-            |collision| {
+            |_| {
                 //println!("{collision:?}");
             },
         );

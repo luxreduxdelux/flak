@@ -1,4 +1,5 @@
 use super::general::Box2;
+use super::general::Box3;
 use super::general::Camera2D;
 use super::general::Camera3D;
 use engine_macro::*;
@@ -39,6 +40,7 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     screen.set("draw_3D",        lua.create_function(self::draw_3D)?)?;
     screen.set("draw_grid",      lua.create_function(self::draw_grid)?)?;
     screen.set("draw_cube",      lua.create_function(self::draw_cube)?)?;
+    screen.set("draw_box_3",     lua.create_function(self::draw_box_3)?)?;
     screen.set("set_depth_test", lua.create_function(self::set_depth_test)?)?;
 
     //================================================================
@@ -103,7 +105,8 @@ fn draw_2D(lua: &mlua::Lua, (call, camera): (mlua::Function, mlua::Value)) -> ml
     }
 }
 
-// TO-DO temporary
+// TO-DO documentation
+#[allow(non_snake_case)]
 fn draw_2D_begin(lua: &mlua::Lua, camera: mlua::Value) -> mlua::Result<()> {
     unsafe {
         let camera: Camera2D = lua.from_value(camera)?;
@@ -114,7 +117,8 @@ fn draw_2D_begin(lua: &mlua::Lua, camera: mlua::Value) -> mlua::Result<()> {
     }
 }
 
-// TO-DO temporary
+// TO-DO documentation
+#[allow(non_snake_case)]
 fn draw_2D_close(_: &mlua::Lua, _: ()) -> mlua::Result<()> {
     unsafe {
         ffi::EndMode2D();
@@ -476,7 +480,36 @@ fn draw_cube(
     }
 }
 
-fn set_depth_test(lua: &mlua::Lua, value: bool) -> mlua::Result<()> {
+#[function(
+    from = "screen",
+    info = "Draw a 3D box.",
+    parameter(name = "box_3", info = "3D box to draw.", kind = "Box3"),
+    parameter(
+        name = "color",
+        info = "Color of the 3D box.",
+        kind = "Color",
+        optional = true
+    )
+)]
+fn draw_box_3(
+    lua: &mlua::Lua,
+    (box_3, color): (mlua::Value, Option<mlua::Value>),
+) -> mlua::Result<()> {
+    unsafe {
+        let box_3: Box3 = lua.from_value(box_3)?;
+        let color: Color = if let Some(color) = color {
+            lua.from_value(color)?
+        } else {
+            Color::WHITE
+        };
+
+        ffi::DrawBoundingBox(box_3.into(), color.into());
+
+        Ok(())
+    }
+}
+
+fn set_depth_test(_: &mlua::Lua, value: bool) -> mlua::Result<()> {
     unsafe {
         if value {
             ffi::rlEnableDepthTest();

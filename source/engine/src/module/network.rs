@@ -28,7 +28,7 @@ use std::time::SystemTime;
 pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     let network = lua.create_table()?;
 
-    network.set("get_address", lua.create_function(self::get_address)?)?;
+    network.set("get_address", lua.create_async_function(self::get_address)?)?;
     network.set("new_server",  lua.create_function(self::Server::new_server)?)?;
     network.set("new_client",  lua.create_function(self::Client::new_client)?)?;
 
@@ -45,9 +45,9 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     result(name = "internal", info = "Internal address.", kind = "string"),
     result(name = "external", info = "External address.", kind = "string")
 )]
-fn get_address(_: &mlua::Lua, _: ()) -> mlua::Result<(String, String)> {
-    let internal = local_ip_address::local_ip().unwrap();
-    let external = public_ip_address::perform_lookup(None).unwrap().ip;
+async fn get_address(_: mlua::Lua, _: ()) -> mlua::Result<(String, String)> {
+    let internal = map_error(local_ip_address::local_ip())?;
+    let external = map_error(public_ip_address::perform_lookup(None).await)?.ip;
 
     Ok((internal.to_string(), external.to_string()))
 }

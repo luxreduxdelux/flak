@@ -1,4 +1,4 @@
-use crate::module::general::*;
+use crate::{ScriptData, module::general::*};
 use engine_macro::*;
 
 //================================================================
@@ -22,6 +22,7 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     data.set("from_string",        lua.create_function(self::from_string)?)?;
     data.set("get_system",         lua.create_function(self::get_system)?)?;
     data.set("get_argument_list",  lua.create_function(self::get_argument_list)?)?;
+    data.set("get_path",           lua.create_function(self::get_path)?)?;
     data.set("get_date",           lua.create_function(self::get_date)?)?;
     data.set("get_time",           lua.create_function(self::get_time)?)?;
 
@@ -223,6 +224,17 @@ fn get_system(_: &mlua::Lua, _: ()) -> mlua::Result<usize> {
 #[rustfmt::skip]
 fn get_argument_list(_: &mlua::Lua, _: ()) -> mlua::Result<Vec<String>> {
     Ok(std::env::args().map(|x| x.to_string()).collect())
+}
+
+#[function(
+    from = "data",
+    info = "Get the current path to the main folder.",
+    result(name = "path", info = "Path to the main folder.", kind = "string")
+)]
+fn get_path(lua: &mlua::Lua, _: ()) -> mlua::Result<String> {
+    let data = ScriptData::get(lua);
+
+    Ok(data.path.clone())
 }
 
 #[function(

@@ -2,7 +2,6 @@
 A 2D game engine, for Lua.
 
 ## Build
-
 Follow the Raylib build instruction for your operating system [here](https://github.com/raysan5/raylib/wiki/Working-on-Windows).
 
 On Linux (Debian/Ubuntu/Mint):
