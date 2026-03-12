@@ -27,7 +27,6 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     window.set("get_frame_rate",     lua.create_function(self::get_frame_rate)?)?;
     window.set("is_focus",           lua.create_function(self::is_focus)?)?;
     window.set("is_scale_new",       lua.create_function(self::is_scale_new)?)?;
-    window.set("dialog_message",     lua.create_function(self::dialog_message)?)?;
     //window.set("dialog_pick_file",   lua.create_function(self::dialog_pick_file)?)?;
     //window.set("dialog_pick_path",   lua.create_function(self::dialog_pick_path)?)?;
 
@@ -217,43 +216,4 @@ fn is_focus(_: &mlua::Lua, _: ()) -> mlua::Result<bool> {
 )]
 fn is_scale_new(_: &mlua::Lua, _: ()) -> mlua::Result<bool> {
     unsafe { Ok(ffi::IsWindowResized()) }
-}
-
-#[function(
-    from = "window",
-    info = "Show a message dialog.",
-    parameter(
-        name = "kind",
-        info = "Message kind.",
-        kind(user_data(name = "MessageKind"))
-    ),
-    parameter(name = "name", info = "Message window name.", kind = "string"),
-    parameter(name = "text", info = "Message window text.", kind = "string"),
-    result(
-        name = "button",
-        info = "Text of the button that was hit.",
-        kind = "string"
-    )
-)]
-fn dialog_message(
-    _: &mlua::Lua,
-    (kind, name, text): (usize, String, String),
-) -> mlua::Result<bool> {
-    let kind = match kind {
-        0 => rfd::MessageLevel::Info,
-        1 => rfd::MessageLevel::Warning,
-        _ => rfd::MessageLevel::Error,
-    };
-
-    let result = rfd::MessageDialog::new()
-        .set_level(kind)
-        .set_title(name)
-        .set_description(text)
-        .set_buttons(rfd::MessageButtons::YesNo)
-        .show();
-
-    match result {
-        rfd::MessageDialogResult::Yes => Ok(true),
-        _ => Ok(false),
-    }
 }

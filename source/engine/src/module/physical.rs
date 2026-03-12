@@ -5,6 +5,7 @@ use engine_macro::*;
 use mlua::prelude::*;
 use rapier3d::{control::KinematicCharacterController, prelude::*};
 use raylib::prelude::*;
+use std::sync::mpsc::Receiver;
 
 //================================================================
 
@@ -33,6 +34,9 @@ struct Physical {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     debug_render_pipeline: DebugRenderPipeline,
+    rx_collide: Receiver<CollisionEvent>,
+    rx_contact: Receiver<ContactForceEvent>,
+    event_handler: ChannelEventCollector,
 }
 
 impl Physical {
@@ -46,6 +50,10 @@ impl Physical {
         )
     )]
     fn new(_: &mlua::Lua, _: ()) -> mlua::Result<Self> {
+        let (tx_collide, rx_collide) = std::sync::mpsc::channel();
+        let (tx_contact, rx_contact) = std::sync::mpsc::channel();
+        let event_handler = ChannelEventCollector::new(tx_collide, tx_contact);
+
         let physical = Self {
             integration_parameters: IntegrationParameters::default(),
             physics_pipeline: PhysicsPipeline::new(),
@@ -58,6 +66,9 @@ impl Physical {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             debug_render_pipeline: DebugRenderPipeline::default(),
+            rx_collide,
+            rx_contact,
+            event_handler,
         };
 
         Ok(physical)
@@ -68,7 +79,7 @@ impl Physical {
         info = "Update the simulation.",
         parameter(name = "delta", info = "Time delta.", kind = "number")
     )]
-    fn update(_: &mlua::Lua, this: &mut Self, _: ()) -> mlua::Result<()> {
+    fn update(lua: &mlua::Lua, this: &mut Self, _: ()) -> mlua::Result<mlua::Value> {
         this.physics_pipeline.step(
             &vector![0.0, -9.81, 0.0],
             &this.integration_parameters,
@@ -81,10 +92,60 @@ impl Physical {
             &mut this.multibody_joint_set,
             &mut this.ccd_solver,
             &(),
-            &(),
+            &this.event_handler,
         );
 
-        Ok(())
+        let mut collide_list = Vec::new();
+
+        let get_rigid = |solid| {
+            if let Some(solid) = this.collider_set.get(solid) {
+                Some(solid.parent().unwrap())
+            } else {
+                None
+            }
+        };
+
+        // TO-DO handle collider removal stop case.
+        while let Ok(event_collide) = this.rx_collide.try_recv() {
+            match event_collide {
+                CollisionEvent::Started(solid_a, solid_b, flag) => {
+                    let rigid_a = get_rigid(solid_a);
+                    let rigid_b = get_rigid(solid_b);
+
+                    collide_list.push((
+                        true,
+                        rigid_a,
+                        rigid_b,
+                        flag & CollisionEventFlags::SENSOR,
+                        flag & CollisionEventFlags::REMOVED,
+                    ));
+                }
+                CollisionEvent::Stopped(solid_a, solid_b, flag) => {
+                    let rigid_a = get_rigid(solid_a);
+                    let rigid_b = get_rigid(solid_b);
+
+                    collide_list.push((
+                        false,
+                        rigid_a,
+                        rigid_b,
+                        flag & CollisionEventFlags::SENSOR,
+                        flag & CollisionEventFlags::REMOVED,
+                    ));
+                }
+            }
+
+            // Handle the collision event.
+            // println!("Received collision event: {:?}", event_collide);
+        }
+
+        /*
+        while let Ok(event_contact) = this.rx_contact.try_recv() {
+            // Handle the contact force event.
+            println!("Received contact force event: {:?}", event_contact);
+        }
+        */
+
+        lua.to_value(&collide_list)
     }
 
     #[method(from = "Physical", info = "Render the simulation.")]
@@ -226,13 +287,39 @@ impl Physical {
     ) -> mlua::Result<mlua::Value> {
         let rigid: RigidBodyHandle = lua.from_value(rigid)?;
         let scale: Vector3 = lua.from_value(scale)?;
-        let solid = ColliderBuilder::cuboid(scale.x, scale.y, scale.z);
+        let solid = ColliderBuilder::cuboid(scale.x, scale.y, scale.z)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .active_collision_types(ActiveCollisionTypes::all())
+            .build();
 
         lua.to_value(
             &this
                 .collider_set
                 .insert_with_parent(solid, rigid, &mut this.rigid_body_set),
         )
+    }
+
+    #[method(
+        from = "Physical",
+        info = "Delete a rigid body.",
+        parameter(
+            name = "rigid",
+            info = "Rigid body handle.",
+            kind(user_data(name = "Rigid"))
+        )
+    )]
+    fn delete_rigid(lua: &mlua::Lua, this: &mut Self, rigid: mlua::Value) -> mlua::Result<()> {
+        let rigid: RigidBodyHandle = lua.from_value(rigid)?;
+        this.rigid_body_set.remove(
+            rigid,
+            &mut this.island_manager,
+            &mut this.collider_set,
+            &mut this.impulse_joint_set,
+            &mut this.multibody_joint_set,
+            true,
+        );
+
+        Ok(())
     }
 
     #[method(
@@ -261,18 +348,18 @@ impl Physical {
 
     #[method(
         from = "Physical",
-        info = "Get the user-data of the rigid body.",
+        info = "Get the user-value of the rigid body.",
         parameter(
             name = "rigid",
             info = "Rigid body handle.",
             kind(user_data(name = "Rigid"))
         ),
-        result(name = "a", info = "0:31 bit data.", kind = "number"),
-        result(name = "b", info = "31:63 bit data.", kind = "number"),
-        result(name = "c", info = "63:95 bit data.", kind = "number"),
-        result(name = "d", info = "95:127 bit data.", kind = "number")
+        result(name = "a", info = "0:31 bit value.", kind = "number"),
+        result(name = "b", info = "31:63 bit value.", kind = "number"),
+        result(name = "c", info = "63:95 bit value.", kind = "number"),
+        result(name = "d", info = "95:127 bit value.", kind = "number")
     )]
-    fn get_rigid_data(
+    fn get_rigid_value(
         lua: &mlua::Lua,
         this: &mut Self,
         rigid: mlua::Value,
@@ -289,18 +376,18 @@ impl Physical {
 
     #[method(
         from = "Physical",
-        info = "Set the user-data of the rigid body.",
+        info = "Set the user-value of the rigid body.",
         parameter(
             name = "rigid",
             info = "Rigid body handle.",
             kind(user_data(name = "Rigid"))
         ),
-        parameter(name = "a", info = "0:31 bit data.", kind = "number"),
-        parameter(name = "b", info = "31:63 bit data.", kind = "number"),
-        parameter(name = "c", info = "63:95 bit data.", kind = "number"),
-        parameter(name = "d", info = "95:127 bit data.", kind = "number")
+        parameter(name = "a", info = "0:31 bit value.", kind = "number"),
+        parameter(name = "b", info = "31:63 bit value.", kind = "number"),
+        parameter(name = "c", info = "63:95 bit value.", kind = "number"),
+        parameter(name = "d", info = "95:127 bit value.", kind = "number")
     )]
-    fn set_rigid_data(
+    fn set_rigid_value(
         lua: &mlua::Lua,
         this: &mut Self,
         (rigid, a, b, c, d): (mlua::Value, u32, u32, u32, u32),
@@ -310,6 +397,33 @@ impl Physical {
 
         rigid.user_data =
             ((a as u128) << 96) | ((b as u128) << 64) | ((c as u128) << 32) | (d as u128);
+
+        Ok(())
+    }
+
+    #[method(
+        from = "Physical",
+        info = "Set the sensor status of the solid body.",
+        parameter(
+            name = "solid",
+            info = "Solid body handle.",
+            kind(user_data(name = "Solid"))
+        ),
+        parameter(
+            name = "sensor",
+            info = "Sensor status of the solid body.",
+            kind(user_data(name = "Solid"))
+        )
+    )]
+    fn set_solid_sensor(
+        lua: &mlua::Lua,
+        this: &mut Self,
+        (solid, sensor): (mlua::Value, bool),
+    ) -> mlua::Result<()> {
+        let solid: ColliderHandle = lua.from_value(solid)?;
+        let solid = this.collider_set.get_mut(solid).unwrap();
+
+        solid.set_sensor(sensor);
 
         Ok(())
     }
@@ -347,7 +461,9 @@ impl Physical {
 
         let speed = vector![speed.x * delta, speed.y * delta, speed.z * delta];
         let character_controller = KinematicCharacterController::default();
-        let filter = QueryFilter::default().exclude_rigid_body(rigid);
+        let filter = QueryFilter::default()
+            .exclude_rigid_body(rigid)
+            .exclude_sensors();
         let query_pipeline = this.broad_phase.as_query_pipeline(
             this.narrow_phase.query_dispatcher(),
             &this.rigid_body_set,
@@ -472,9 +588,11 @@ impl mlua::UserData for Physical {
         method.add_method_mut("create_rigid",      Self::create_rigid);
         method.add_method_mut("create_solid_mesh", Self::create_solid_mesh);
         method.add_method_mut("create_solid_cube", Self::create_solid_cube);
+        method.add_method_mut("delete_rigid",      Self::delete_rigid);
         method.add_method_mut("set_rigid_point",   Self::set_rigid_point);
-        method.add_method_mut("get_rigid_data",    Self::get_rigid_data);
-        method.add_method_mut("set_rigid_data",    Self::set_rigid_data);
+        method.add_method_mut("get_rigid_value",   Self::get_rigid_value);
+        method.add_method_mut("set_rigid_value",   Self::set_rigid_value);
+        method.add_method_mut("set_solid_sensor",  Self::set_solid_sensor);
         method.add_method_mut("move_controller",   Self::move_controller);
         method.add_method_mut("query_ray",         Self::query_ray);
         //method.add_method_mut("query_box",       Self::query_box);

@@ -30,7 +30,7 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     screen.set("draw_box_2",          lua.create_function(self::draw_box_2)?)?;
     screen.set("draw_box_2_round",    lua.create_function(self::draw_box_2_round)?)?;
     screen.set("draw_box_2_shade",    lua.create_function(self::draw_box_2_shade)?)?;
-    screen.set("draw_line",           lua.create_function(self::draw_line)?)?;
+    screen.set("draw_line_2D",        lua.create_function(self::draw_line_2D)?)?;
     screen.set("draw_circle",         lua.create_function(self::draw_circle)?)?;
     screen.set("get_screen_to_world", lua.create_function(self::get_screen_to_world)?)?;
     screen.set("get_world_to_screen", lua.create_function(self::get_world_to_screen)?)?;
@@ -40,6 +40,7 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     screen.set("draw_3D",        lua.create_function(self::draw_3D)?)?;
     screen.set("draw_grid",      lua.create_function(self::draw_grid)?)?;
     screen.set("draw_cube",      lua.create_function(self::draw_cube)?)?;
+    screen.set("draw_line_3D",   lua.create_function(self::draw_line_3D)?)?;
     screen.set("draw_box_3",     lua.create_function(self::draw_box_3)?)?;
     screen.set("set_depth_test", lua.create_function(self::set_depth_test)?)?;
 
@@ -325,7 +326,7 @@ fn draw_box_2_shade(
         optional = true
     )
 )]
-fn draw_line(
+fn draw_line_2D(
     lua: &mlua::Lua,
     (source, target, thick, color): (mlua::Value, mlua::Value, Option<f32>, Option<mlua::Value>),
 ) -> mlua::Result<()> {
@@ -475,6 +476,28 @@ fn draw_cube(
         let color: Color = lua.from_value(color)?;
 
         ffi::DrawCubeV(point.into(), scale.into(), color.into());
+
+        Ok(())
+    }
+}
+
+#[function(
+    from = "screen",
+    info = "Draw a 3D line.",
+    parameter(name = "point_a", info = "Line point (A).", kind = "Vector3"),
+    parameter(name = "point_b", info = "Line point (B).", kind = "Vector3"),
+    parameter(name = "color", info = "Line color.", kind = "Color")
+)]
+fn draw_line_3D(
+    lua: &mlua::Lua,
+    (point_a, point_b, color): (mlua::Value, mlua::Value, mlua::Value),
+) -> mlua::Result<()> {
+    unsafe {
+        let point_a: Vector3 = lua.from_value(point_a)?;
+        let point_b: Vector3 = lua.from_value(point_b)?;
+        let color: Color = lua.from_value(color)?;
+
+        ffi::DrawLine3D(point_a.into(), point_b.into(), color.into());
 
         Ok(())
     }

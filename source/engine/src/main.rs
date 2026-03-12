@@ -81,6 +81,7 @@ impl Window {
 
 //================================================================
 
+#[derive(Clone)]
 enum ScriptState {
     Success,
     Failure(String),
@@ -128,7 +129,6 @@ struct Script {
     table: mlua::Table,
     info: mlua::Function,
     main: mlua::Function,
-    fail: mlua::Function,
 }
 
 impl Script {
@@ -138,6 +138,61 @@ impl Script {
     const ENTRY_MAIN: &str = "main";
     const ENTRY_FAIL: &str = "fail";
     const HOOK_NAME: &str = "flak";
+
+    async fn call_fail(error: &str) -> anyhow::Result<bool> {
+        let script_data = ScriptData::default();
+        let script_path = script_data.path.clone();
+
+        let lua = if script_data.safe {
+            // FFI library is unfortunately necessary for the 'scene' Flak standard library.
+            unsafe {
+                Lua::unsafe_new_with(
+                    LuaStdLib::ALL_SAFE | LuaStdLib::FFI | LuaStdLib::DEBUG,
+                    LuaOptions::default(),
+                )
+            }
+        } else {
+            unsafe { Lua::unsafe_new() }
+        };
+
+        let main = std::path::Path::new(&script_path);
+
+        lua.set_app_data(script_data);
+
+        if main.is_file() {
+            let global = lua.globals();
+            let loader = global.get::<mlua::Table>("package")?;
+            let loader = loader.get::<mlua::Table>("loaders")?;
+
+            let script_path = script_path.clone();
+            let mut file = zip::ZipArchive::new(std::fs::File::open(&script_path)?)?;
+
+            loader.push(lua.create_function_mut(move |lua, path: String| {
+                let token: Vec<&str> = path.split(&format!("{}/", script_path)).collect();
+
+                if let Some(path) = token.get(1)
+                    && let Ok(mut entry) = file.by_name(&format!("{path}.lua"))
+                {
+                    let mut buffer = String::new();
+                    entry.read_to_string(&mut buffer)?;
+                    return Ok(lua.load(buffer).into_function());
+                }
+
+                Err(mlua::Error::external(format!(
+                    "No module \"{path}\" found in the \"{script_path}\" ZIP archive."
+                )))
+            })?)?;
+        }
+
+        Self::set_global(&lua, false)?;
+
+        let table: mlua::Table = lua
+            .load(format!("require(\"{}/{}\")", script_path, Self::MAIN_FILE))
+            .eval()?;
+        let fail: mlua::Function = table.get(Self::ENTRY_FAIL)?;
+
+        Ok(fail.call_async::<bool>((&table, error.to_string())).await?)
+    }
 
     fn new(set_window_global: bool) -> anyhow::Result<Self> {
         let script_data = ScriptData::default();
@@ -191,7 +246,6 @@ impl Script {
             .eval()?;
         let info = table.get(Self::ENTRY_INFO)?;
         let main = table.get(Self::ENTRY_MAIN)?;
-        let fail = table.get(Self::ENTRY_FAIL)?;
 
         let script = Self {
             lua,
@@ -199,7 +253,6 @@ impl Script {
             table,
             info,
             main,
-            fail,
         };
 
         if set_window_global {
@@ -221,21 +274,21 @@ impl Script {
         };
 
         if window {
-            crate::module::window::set_global(&lua, &global)?;
-            crate::module::screen::set_global(&lua, &global)?;
-            crate::module::shader::set_global(&lua, &global)?;
-            crate::module::texture::set_global(&lua, &global)?;
-            crate::module::font::set_global(&lua, &global)?;
-            crate::module::sound::set_global(&lua, &global)?;
-            crate::module::music::set_global(&lua, &global)?;
-            crate::module::model::set_global(&lua, &global)?;
-            crate::module::input::set_global(&lua, &global)?;
+            crate::module::window::set_global(lua, &global)?;
+            crate::module::screen::set_global(lua, &global)?;
+            crate::module::shader::set_global(lua, &global)?;
+            crate::module::texture::set_global(lua, &global)?;
+            crate::module::font::set_global(lua, &global)?;
+            crate::module::sound::set_global(lua, &global)?;
+            crate::module::music::set_global(lua, &global)?;
+            crate::module::model::set_global(lua, &global)?;
+            crate::module::input::set_global(lua, &global)?;
         } else {
-            crate::module::data::set_global(&lua, &global)?;
-            crate::module::discord::set_global(&lua, &global)?;
-            crate::module::archive::set_global(&lua, &global)?;
-            crate::module::network::set_global(&lua, &global)?;
-            crate::module::physical::set_global(&lua, &global)?;
+            crate::module::data::set_global(lua, &global)?;
+            crate::module::discord::set_global(lua, &global)?;
+            crate::module::archive::set_global(lua, &global)?;
+            crate::module::network::set_global(lua, &global)?;
+            crate::module::physical::set_global(lua, &global)?;
 
             lua.globals().set(
                 "print",
@@ -283,36 +336,54 @@ async fn main() -> anyhow::Result<()> {
         std::env::set_var("RUST_BACKTRACE", "1");
     }
 
-    /*
     let hook = std::panic::take_hook();
 
     std::panic::set_hook(Box::new(move |panic_info| {
         let time = chrono::Local::now();
         let file = format!("panic_{}.txt", time.format("%d_%m_%y_%H_%M_%S"));
+        let help = format!(
+            "{panic_info}\n\nAn error log \"{file}\" has been written to your game's directory."
+        );
         std::fs::write(file, format!("{}", panic_info)).unwrap();
+
+        unsafe {
+            ffi::CloseWindow();
+        }
+
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_title("Fatal Error")
+            .set_description(help)
+            .show();
 
         hook(panic_info);
     }));
-    */
 
-    let mut script = throw_error(Script::new(false));
-    let window = throw_error(Window::new(&script).await);
+    let mut script = Some(throw_error(Script::new(false)));
+    let mut window = Some(throw_error(Window::new(script.as_ref().unwrap()).await));
 
     loop {
-        match script.state {
+        let state = { script.as_ref().unwrap().state.clone() };
+
+        match state {
             ScriptState::Success => {
-                let code = script.main.call_async::<bool>(&script.table).await;
+                let script_unwrap = script.as_mut().unwrap();
+
+                let code = script_unwrap
+                    .main
+                    .call_async::<bool>(&script_unwrap.table)
+                    .await;
 
                 if let Err(error) = code {
-                    script.state = ScriptState::Failure(error.to_string());
+                    script_unwrap.state = ScriptState::Failure(error.to_string());
                 } else if let Ok(code) = code {
                     if code {
                         let new = Script::new(true);
 
                         if let Err(error) = new {
-                            script.state = ScriptState::Failure(error.to_string());
+                            script_unwrap.state = ScriptState::Failure(error.to_string());
                         } else if let Ok(new) = new {
-                            script = new;
+                            script = Some(new);
                         }
                     } else {
                         break;
@@ -320,20 +391,19 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             ScriptState::Failure(ref error) => {
-                let code = throw_error(
-                    script
-                        .fail
-                        .call_async::<bool>((&script.table, error.to_string()))
-                        .await,
-                );
+                script = None;
+                window = None;
+
+                let code = throw_error(Script::call_fail(error).await);
 
                 if code {
                     let new = Script::new(true);
 
                     if let Err(error) = new {
-                        script.state = ScriptState::Failure(error.to_string());
+                        panic!("Error in fail function: {error}");
                     } else if let Ok(new) = new {
-                        script = new;
+                        script = Some(new);
+                        window = Some(throw_error(Window::new(script.as_ref().unwrap()).await));
                     }
                 } else {
                     break;

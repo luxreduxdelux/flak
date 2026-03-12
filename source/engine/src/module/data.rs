@@ -25,6 +25,8 @@ pub fn set_global(lua: &mlua::Lua, global: &mlua::Table) -> anyhow::Result<()> {
     data.set("get_path",           lua.create_function(self::get_path)?)?;
     data.set("get_date",           lua.create_function(self::get_date)?)?;
     data.set("get_time",           lua.create_function(self::get_time)?)?;
+    // TO-DO move into another module.
+    data.set("dialog_message",     lua.create_function(self::dialog_message)?)?;
 
     global.set("data", data)?;
 
@@ -261,4 +263,43 @@ fn get_time(_: &mlua::Lua, _: ()) -> mlua::Result<(u32, u32, u32)> {
     let time = Local::now();
 
     Ok((time.hour(), time.minute(), time.second()))
+}
+
+#[function(
+    from = "data",
+    info = "Show a message dialog.",
+    parameter(
+        name = "kind",
+        info = "Message kind.",
+        kind(user_data(name = "MessageKind"))
+    ),
+    parameter(name = "name", info = "Message window name.", kind = "string"),
+    parameter(name = "text", info = "Message window text.", kind = "string"),
+    result(
+        name = "button",
+        info = "Text of the button that was hit.",
+        kind = "string"
+    )
+)]
+fn dialog_message(
+    _: &mlua::Lua,
+    (kind, name, text): (usize, String, String),
+) -> mlua::Result<bool> {
+    let kind = match kind {
+        0 => rfd::MessageLevel::Info,
+        1 => rfd::MessageLevel::Warning,
+        _ => rfd::MessageLevel::Error,
+    };
+
+    let result = rfd::MessageDialog::new()
+        .set_level(kind)
+        .set_title(name)
+        .set_description(text)
+        .set_buttons(rfd::MessageButtons::YesNo)
+        .show();
+
+    match result {
+        rfd::MessageDialogResult::Yes => Ok(true),
+        _ => Ok(false),
+    }
 }
