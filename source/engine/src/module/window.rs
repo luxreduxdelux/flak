@@ -1,9 +1,10 @@
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
 use mlua::prelude::*;
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 
 //================================================================
 
@@ -120,7 +121,7 @@ fn get_window_scale(lua: &mlua::Lua, _: ()) -> mlua::Result<mlua::Value> {
 )]
 fn set_window_scale(lua: &mlua::Lua, scale: mlua::Value) -> mlua::Result<()> {
     unsafe {
-        let value: Vector2 = lua.from_value(scale)?;
+        let value = Vector2::try_from(lua, scale)?;
         ffi::SetWindowSize(value.x as i32, value.y as i32);
         Ok(())
     }
@@ -148,9 +149,9 @@ fn get_render_scale(lua: &mlua::Lua, _: ()) -> mlua::Result<mlua::Value> {
 fn set_frame_sync(_: &mlua::Lua, sync: bool) -> mlua::Result<()> {
     unsafe {
         if sync {
-            ffi::SetWindowState(ConfigFlags::FLAG_VSYNC_HINT as u32);
+            ffi::SetWindowState(ffi::ConfigFlags::FLAG_VSYNC_HINT as u32);
         } else {
-            ffi::ClearWindowState(ConfigFlags::FLAG_VSYNC_HINT as u32);
+            ffi::ClearWindowState(ffi::ConfigFlags::FLAG_VSYNC_HINT as u32);
         }
 
         Ok(())

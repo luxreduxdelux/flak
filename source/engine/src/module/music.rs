@@ -1,9 +1,9 @@
-use crate::module::general::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 
 //================================================================
 

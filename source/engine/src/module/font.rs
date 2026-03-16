@@ -1,11 +1,11 @@
-use crate::module::archive::*;
-use crate::module::general::*;
+use super::archive::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
 use mlua::prelude::*;
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 
 //================================================================
 
@@ -167,8 +167,8 @@ impl Font {
         (text, point, scale, space, color): (String, mlua::Value, f32, f32, mlua::Value),
     ) -> mlua::Result<()> {
         unsafe {
-            let point: Vector2 = lua.from_value(point)?;
-            let color: Color = lua.from_value(color)?;
+            let point = Vector2::try_from(lua, point)?;
+            let color = Color::try_from(lua, color)?;
 
             ffi::DrawTextEx(
                 this.inner,
@@ -207,8 +207,8 @@ impl Font {
         this: &Self,
         (text, box_2, scale, space, color): (String, mlua::Value, f32, f32, mlua::Value),
     ) -> mlua::Result<mlua::Value> {
-        let box_2: Box2 = lua.from_value(box_2)?;
-        let color: Color = lua.from_value(color)?;
+        let box_2 = Box2::try_from(lua, box_2)?;
+        let color = Color::try_from(lua, color)?;
 
         let length: i32 = text.len() as i32;
         let text = c_string(&text)?;
@@ -305,7 +305,7 @@ impl Font {
                             ffi::DrawTextCodepoint(
                                 this.inner,
                                 codepoint,
-                                Vector2 {
+                                ffi::Vector2 {
                                     x: box_2.p_x + text_shift_x,
                                     y: box_2.p_y + text_shift_y,
                                 }
@@ -387,7 +387,7 @@ impl Font {
         this: &Self,
         (text, box_2, scale, space): (String, mlua::Value, f32, f32),
     ) -> mlua::Result<mlua::Value> {
-        let box_2: Box2 = lua.from_value(box_2)?;
+        let box_2 = Box2::try_from(lua, box_2)?;
 
         let length: i32 = text.len() as i32;
         let text = c_string(&text)?;

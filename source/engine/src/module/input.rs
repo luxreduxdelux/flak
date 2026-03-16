@@ -1,10 +1,10 @@
-use crate::module::general::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
 use mlua::prelude::*;
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 
 //================================================================
 
@@ -310,7 +310,7 @@ mod mouse {
     )]
     pub fn set_point(lua: &mlua::Lua, point: mlua::Value) -> mlua::Result<()> {
         unsafe {
-            let point: Vector2 = lua.from_value(point)?;
+            let point = Vector2::try_from(lua, point)?;
             ffi::SetMousePosition(point.x as i32, point.y as i32);
             Ok(())
         }

@@ -1,4 +1,4 @@
-use crate::module::general::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================

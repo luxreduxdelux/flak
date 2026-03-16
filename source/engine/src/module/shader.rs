@@ -1,10 +1,9 @@
-use crate::module::general::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
-use mlua::prelude::*;
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 use std::ffi::c_void;
 
 //================================================================
@@ -186,7 +185,7 @@ impl Shader {
         (index, value): (i32, mlua::Value),
     ) -> mlua::Result<()> {
         unsafe {
-            let value: Vector2 = lua.from_value(value)?;
+            let value = Vector2::try_from(lua, value)?;
             let value: ffi::Vector2 = value.into();
             let value: *const ffi::Vector2 = &value;
             let value: *const c_void = value as *const c_void;
@@ -214,7 +213,7 @@ impl Shader {
         (index, value): (i32, mlua::Value),
     ) -> mlua::Result<()> {
         unsafe {
-            let value: Vector3 = lua.from_value(value)?;
+            let value = Vector3::try_from(lua, value)?;
             let value: ffi::Vector3 = value.into();
             let value: *const ffi::Vector3 = &value;
             let value: *const c_void = value as *const c_void;

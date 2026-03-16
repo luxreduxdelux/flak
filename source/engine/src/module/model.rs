@@ -1,10 +1,9 @@
-use crate::module::general::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
-use mlua::prelude::*;
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 
 //================================================================
 
@@ -85,10 +84,10 @@ impl Model {
         ),
     ) -> mlua::Result<()> {
         unsafe {
-            let point: Vector3 = lua.from_value(point)?;
-            let angle_axis: Vector3 = lua.from_value(angle_axis)?;
-            let scale: Vector3 = lua.from_value(scale)?;
-            let color: Color = lua.from_value(color)?;
+            let point = Vector3::try_from(lua, point)?;
+            let angle_axis = Vector3::try_from(lua, angle_axis)?;
+            let scale = Vector3::try_from(lua, scale)?;
+            let color = Color::try_from(lua, color)?;
 
             ffi::DrawModelEx(
                 this.inner,

@@ -1,11 +1,11 @@
-use crate::module::archive::*;
-use crate::module::general::*;
+use super::archive::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
 use mlua::prelude::*;
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 use std::mem::MaybeUninit;
 
 //================================================================
@@ -217,10 +217,10 @@ impl Texture {
         ),
     ) -> mlua::Result<()> {
         unsafe {
-            let source: Box2 = lua.from_value(source)?;
-            let target: Box2 = lua.from_value(target)?;
-            let point: Vector2 = lua.from_value(point)?;
-            let color: Color = lua.from_value(color)?;
+            let source = Box2::try_from(lua, source)?;
+            let target = Box2::try_from(lua, target)?;
+            let point = Vector2::try_from(lua, point)?;
+            let color = Color::try_from(lua, color)?;
 
             ffi::DrawTexturePro(
                 this.inner,
@@ -324,7 +324,7 @@ impl TextureTarget {
     )]
     fn new(lua: &mlua::Lua, scale: mlua::Value) -> mlua::Result<Self> {
         unsafe {
-            let scale: Vector2 = lua.from_value(scale)?;
+            let scale = Vector2::try_from(lua, scale)?;
             let inner = ffi::LoadRenderTexture(scale.x as i32, scale.y as i32);
 
             if ffi::IsRenderTextureValid(inner) {
@@ -373,10 +373,10 @@ impl TextureTarget {
         ),
     ) -> mlua::Result<()> {
         unsafe {
-            let mut source: Box2 = lua.from_value(source)?;
-            let target: Box2 = lua.from_value(target)?;
-            let point: Vector2 = lua.from_value(point)?;
-            let color: Color = lua.from_value(color)?;
+            let mut source = Box2::try_from(lua, source)?;
+            let target = Box2::try_from(lua, target)?;
+            let point = Vector2::try_from(lua, point)?;
+            let color = Color::try_from(lua, color)?;
 
             source.s_y = -source.s_y;
 

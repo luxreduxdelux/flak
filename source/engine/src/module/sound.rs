@@ -1,10 +1,10 @@
-use crate::module::archive::*;
-use crate::module::general::*;
+use super::archive::*;
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 
 //================================================================
 

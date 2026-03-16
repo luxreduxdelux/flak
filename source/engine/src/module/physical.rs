@@ -1,10 +1,11 @@
+use super::general::*;
 use engine_macro::*;
 
 //================================================================
 
 use mlua::prelude::*;
 use rapier3d::{control::KinematicCharacterController, prelude::*};
-use raylib::prelude::*;
+use raylib::prelude::ffi;
 use std::sync::mpsc::Receiver;
 
 //================================================================
@@ -35,7 +36,7 @@ struct Physical {
     ccd_solver: CCDSolver,
     debug_render_pipeline: DebugRenderPipeline,
     rx_collide: Receiver<CollisionEvent>,
-    rx_contact: Receiver<ContactForceEvent>,
+    //rx_contact: Receiver<ContactForceEvent>,
     event_handler: ChannelEventCollector,
 }
 
@@ -51,7 +52,7 @@ impl Physical {
     )]
     fn new(_: &mlua::Lua, _: ()) -> mlua::Result<Self> {
         let (tx_collide, rx_collide) = std::sync::mpsc::channel();
-        let (tx_contact, rx_contact) = std::sync::mpsc::channel();
+        let (tx_contact, _) = std::sync::mpsc::channel();
         let event_handler = ChannelEventCollector::new(tx_collide, tx_contact);
 
         let physical = Self {
@@ -67,7 +68,7 @@ impl Physical {
             ccd_solver: CCDSolver::new(),
             debug_render_pipeline: DebugRenderPipeline::default(),
             rx_collide,
-            rx_contact,
+            //rx_contact,
             event_handler,
         };
 
@@ -98,11 +99,9 @@ impl Physical {
         let mut collide_list = Vec::new();
 
         let get_rigid = |solid| {
-            if let Some(solid) = this.collider_set.get(solid) {
-                Some(solid.parent().unwrap())
-            } else {
-                None
-            }
+            this.collider_set
+                .get(solid)
+                .map(|solid| solid.parent().unwrap())
         };
 
         // TO-DO handle collider removal stop case.
@@ -286,7 +285,7 @@ impl Physical {
         (rigid, scale): (mlua::Value, mlua::Value),
     ) -> mlua::Result<mlua::Value> {
         let rigid: RigidBodyHandle = lua.from_value(rigid)?;
-        let scale: Vector3 = lua.from_value(scale)?;
+        let scale = Vector3::try_from(lua, scale)?;
         let solid = ColliderBuilder::cuboid(scale.x, scale.y, scale.z)
             .active_events(ActiveEvents::COLLISION_EVENTS)
             .active_collision_types(ActiveCollisionTypes::all())
@@ -339,7 +338,7 @@ impl Physical {
     ) -> mlua::Result<()> {
         let rigid: RigidBodyHandle = lua.from_value(rigid)?;
         let rigid = this.rigid_body_set.get_mut(rigid).unwrap();
-        let point: Vector3 = lua.from_value(point)?;
+        let point = Vector3::try_from(lua, point)?;
 
         rigid.set_translation(vector![point.x, point.y, point.z], true);
 
@@ -457,7 +456,7 @@ impl Physical {
     ) -> mlua::Result<(mlua::Value, bool, bool)> {
         let rigid: RigidBodyHandle = lua.from_value(rigid)?;
         let solid: ColliderHandle = lua.from_value(solid)?;
-        let speed: Vector3 = lua.from_value(speed)?;
+        let speed = Vector3::try_from(lua, speed)?;
 
         let speed = vector![speed.x * delta, speed.y * delta, speed.z * delta];
         let character_controller = KinematicCharacterController::default();
@@ -529,7 +528,7 @@ impl Physical {
         this: &mut Self,
         (ray, time, rigid, group): (mlua::Value, f32, Option<mlua::Value>, Option<mlua::Value>),
     ) -> mlua::Result<(mlua::Value, mlua::Value, mlua::Value)> {
-        let ray: crate::module::general::Ray = lua.from_value(ray)?;
+        let ray = crate::module::general::Ray::try_from(lua, ray)?;
         let ray = rapier3d::geometry::Ray::new(
             point![ray.source.x, ray.source.y, ray.source.z],
             vector![ray.target.x, ray.target.y, ray.target.z],
